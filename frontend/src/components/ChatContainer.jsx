@@ -7,7 +7,6 @@ import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
 
-import { axiosInstance as axios } from "../lib/axios"; // Custom axios instance
 import { toast } from "react-hot-toast";
 
 const ChatContainer = () => {
@@ -18,6 +17,8 @@ const ChatContainer = () => {
     selectedUser,
     subscribeToMessages,
     unsubscribeFromMessages,
+    deleteMessageForEveryone,
+    deleteMessageForMe,
   } = useChatStore();
 
   const { authUser } = useAuthStore();
@@ -40,19 +41,21 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
-  const handleDelete = async (messageId) => {
-    try {
-      await axios.delete(`/api/messages/delete/${messageId}`, {
-        headers: {
-          Authorization: `Bearer ${authUser.token}`,
-        },
-      });
-      toast.success("Message deleted");
-      getMessages(selectedUser._id);
-    } catch (error) {
-      console.error("Delete Error:", error.message);
-      toast.error("Failed to delete message");
+  const handleDeleteForEveryone = async (messageId) => {
+    if (window.confirm("Delete message for everyone?")) {
+      try {
+        await deleteMessageForEveryone(messageId);
+        toast.success("Message deleted for everyone");
+      } catch (error) {
+        console.error("Delete for everyone failed", error);
+        toast.error("Failed to delete message for everyone");
+      }
     }
+  };
+
+  const handleDeleteForMe = (messageId) => {
+    deleteMessageForMe(messageId);
+    toast.success("Message deleted for you");
   };
 
   if (isMessagesLoading) {
@@ -78,7 +81,7 @@ const ChatContainer = () => {
             }`}
             ref={messageEndRef}
           >
-            <div className=" chat-image avatar">
+            <div className="chat-image avatar">
               <div className="size-10 rounded-full border">
                 <img
                   src={
@@ -107,14 +110,23 @@ const ChatContainer = () => {
               )}
               {message.text && <p>{message.text}</p>}
 
-              {message.senderId === authUser._id && (
+              <div className="flex gap-4 self-end mt-1 text-xs">
                 <button
-                  onClick={() => handleDelete(message._id)}
-                  className="text-xs text-red-500 mt-1 self-end hover:underline"
+                  onClick={() => handleDeleteForMe(message._id)}
+                  className="text-blue-500 hover:underline"
                 >
-                  Delete
+                  Delete for Me
                 </button>
-              )}
+
+                {message.senderId === authUser._id && (
+                  <button
+                    onClick={() => handleDeleteForEveryone(message._id)}
+                    className="text-red-500 hover:underline"
+                  >
+                    Delete for Everyone
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}

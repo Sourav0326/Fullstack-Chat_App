@@ -7,6 +7,9 @@ import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
 
+import { axiosInstance as axios } from "../lib/axios"; // Custom axios instance
+import { toast } from "react-hot-toast";
+
 const ChatContainer = () => {
   const {
     messages,
@@ -16,14 +19,13 @@ const ChatContainer = () => {
     subscribeToMessages,
     unsubscribeFromMessages,
   } = useChatStore();
+
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
 
   useEffect(() => {
     getMessages(selectedUser._id);
-
     subscribeToMessages();
-
     return () => unsubscribeFromMessages();
   }, [
     selectedUser._id,
@@ -37,6 +39,21 @@ const ChatContainer = () => {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  const handleDelete = async (messageId) => {
+    try {
+      await axios.delete(`/api/messages/delete/${messageId}`, {
+        headers: {
+          Authorization: `Bearer ${authUser.token}`,
+        },
+      });
+      toast.success("Message deleted");
+      getMessages(selectedUser._id);
+    } catch (error) {
+      console.error("Delete Error:", error.message);
+      toast.error("Failed to delete message");
+    }
+  };
 
   if (isMessagesLoading) {
     return (
@@ -73,11 +90,13 @@ const ChatContainer = () => {
                 />
               </div>
             </div>
+
             <div className="chat-header mb-1">
               <time className="text-xs opacity-50 ml-1">
                 {formatMessageTime(message.createdAt)}
               </time>
             </div>
+
             <div className="chat-bubble flex flex-col">
               {message.image && (
                 <img
@@ -87,6 +106,15 @@ const ChatContainer = () => {
                 />
               )}
               {message.text && <p>{message.text}</p>}
+
+              {message.senderId === authUser._id && (
+                <button
+                  onClick={() => handleDelete(message._id)}
+                  className="text-xs text-red-500 mt-1 self-end hover:underline"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -96,4 +124,5 @@ const ChatContainer = () => {
     </div>
   );
 };
+
 export default ChatContainer;

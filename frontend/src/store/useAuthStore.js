@@ -18,7 +18,6 @@ export const useAuthStore = create((set, get) => ({
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/auth/check");
-
       set({ authUser: res.data });
       get().connectSocket();
     } catch (error) {
@@ -49,7 +48,6 @@ export const useAuthStore = create((set, get) => ({
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
       toast.success("Logged in successfully");
-
       get().connectSocket();
     } catch (error) {
       toast.error(error.response.data.message);
@@ -96,10 +94,28 @@ export const useAuthStore = create((set, get) => ({
 
     set({ socket: socket });
 
+    // Online users listener
     socket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });
+
+    // 📌 New Notification listener from server/cron
+    socket.on("newNotification", (notification) => {
+      console.log("📥 New notification received:", notification);
+
+      // Show toast popup
+      toast(notification.text);
+
+      // Save notification to localStorage
+      const existing = JSON.parse(localStorage.getItem("notifications")) || [];
+      existing.unshift({
+        message: notification.text,
+        time: new Date(notification.timestamp).toLocaleString(),
+      });
+      localStorage.setItem("notifications", JSON.stringify(existing));
+    });
   },
+
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();
   },

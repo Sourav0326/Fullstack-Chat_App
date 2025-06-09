@@ -1,5 +1,4 @@
 import Navbar from "./components/Navbar";
-
 import HomePage from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
@@ -9,22 +8,100 @@ import ProfilePage from "./pages/ProfilePage";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
-import { useEffect } from "react";
-
+import { useChatStore } from "./store/useChatStore";
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
-const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
-  const { theme } = useThemeStore();
+import { useState, useEffect, useRef } from "react";
+import WatchTogetherModal from "./components/WatchTogetherModal";
+import VideoPlayerModal from "./components/VideoPlayerModal";
 
-  console.log({ onlineUsers });
+const App = () => {
+  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } =
+    useAuthStore();
+  const { theme } = useThemeStore();
+  const { watchingWith, setWatchingWith } = useChatStore();
+
+  const [incomingVideo, setIncomingVideo] = useState(null);
+  const [playingVideoUrl, setPlayingVideoUrl] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playedTime, setPlayedTime] = useState(0);
+  const playerRef = useRef(null);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  console.log({ authUser });
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("watch-request-received", ({ videoUrl, from, fromId }) => {
+      setIncomingVideo({ videoUrl, from, fromId });
+    });
+
+    socket.on("watch-response-received", ({ accepted }) => {
+      if (accepted) {
+        alert("They accepted your watch request!");
+      } else {
+        alert("They declined your watch request.");
+      }
+    });
+
+    socket.on("start-video-session-received", ({ videoUrl }) => {
+      setPlayingVideoUrl(videoUrl);
+    });
+
+    socket.on("video-control-received", ({ action, currentTime }) => {
+      if (!playerRef.current) return;
+
+      if (action === "play") {
+        setIsPlaying(true);
+        playerRef.current.seekTo(currentTime);
+      }
+
+      if (action === "pause") {
+        setIsPlaying(false);
+        playerRef.current.seekTo(currentTime);
+      }
+
+      if (action === "seek") {
+        playerRef.current.seekTo(currentTime);
+        setPlayedTime(currentTime);
+      }
+    });
+
+    return () => {
+      socket.off("watch-request-received");
+      socket.off("watch-response-received");
+      socket.off("start-video-session-received");
+      socket.off("video-control-received");
+    };
+  }, [socket]);
+
+  const handleControl = (action, customTime) => {
+    const currentTime =
+      customTime !== undefined
+        ? customTime
+        : playerRef.current.getCurrentTime();
+
+    if (watchingWith) {
+      socket.emit("video-control", {
+        to: watchingWith,
+        action,
+        currentTime,
+      });
+    }
+
+    if (action === "play") {
+      setIsPlaying(true);
+    }
+    if (action === "pause") {
+      setIsPlaying(false);
+    }
+    if (action === "seek") {
+      setPlayedTime(currentTime);
+    }
+  };
 
   if (isCheckingAuth && !authUser)
     return (
@@ -57,8 +134,53 @@ const App = () => {
         />
       </Routes>
 
+      {incomingVideo && (
+        <WatchTogetherModal
+          videoUrl={incomingVideo.videoUrl}
+          from={incomingVideo.from}
+          onAccept={() => {
+            socket.emit("watch-response", {
+              to: incomingVideo.fromId,
+              accepted: true,
+            });
+            socket.emit("start-video-session", {
+              to: incomingVideo.fromId,
+              from: authUser._id,
+              videoUrl: incomingVideo.videoUrl,
+            });
+            setWatchingWith(incomingVideo.fromId);
+            setIncomingVideo(null);
+          }}
+          onDecline={() => {
+            socket.emit("watch-response", {
+              to: incomingVideo.fromId,
+              accepted: false,
+            });
+            setIncomingVideo(null);
+          }}
+        />
+      )}
+
+      {playingVideoUrl && (
+        <VideoPlayerModal
+          videoUrl={playingVideoUrl}
+          isPlaying={isPlaying}
+          onClose={() => {
+            setPlayingVideoUrl(null);
+            setIsPlaying(false);
+            setWatchingWith(null);
+            setPlayedTime(0);
+          }}
+          onControl={handleControl}
+          playerRef={playerRef}
+          playedTime={playedTime}
+          setPlayedTime={setPlayedTime}
+        />
+      )}
+
       <Toaster />
     </div>
   );
 };
+
 export default App;

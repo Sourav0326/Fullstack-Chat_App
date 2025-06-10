@@ -3,28 +3,26 @@ import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import GroupInfoModal from "./GroupInfoModal";
+import VideoURLPromptModal from "./VideoURLPromptModal"; // ✅ new
 
 const ChatHeader = () => {
   const { selectedUser, setSelectedUser, setWatchingWith } = useChatStore();
   const { onlineUsers, socket, authUser } = useAuthStore();
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [isVideoPromptOpen, setIsVideoPromptOpen] = useState(false); // ✅ modal state
 
   const isGroup = selectedUser?.isGroup;
   const groupMembers = selectedUser?.members || [];
 
-  const handleWatchRequest = () => {
-    const videoUrl = prompt("Enter Video URL (Cloudinary, YouTube, etc)");
-    if (!videoUrl) return;
-
-    // ✅ set watchingWith on sender side
+  const handleWatchRequest = (videoUrl) => {
     setWatchingWith(selectedUser._id);
-
     socket.emit("watch-request", {
       to: selectedUser._id,
       from: authUser.fullName,
       fromId: authUser._id,
       videoUrl,
     });
+    setIsVideoPromptOpen(false);
   };
 
   return (
@@ -73,7 +71,7 @@ const ChatHeader = () => {
         <div className="flex items-center gap-2">
           {!isGroup && (
             <button
-              onClick={handleWatchRequest}
+              onClick={() => setIsVideoPromptOpen(true)}
               className="btn btn-sm"
               title="Watch Together"
             >
@@ -88,6 +86,15 @@ const ChatHeader = () => {
 
       {isGroup && isInfoModalOpen && (
         <GroupInfoModal close={() => setIsInfoModalOpen(false)} />
+      )}
+
+      {/* ✅ Watch Together Video URL modal */}
+      {!isGroup && (
+        <VideoURLPromptModal
+          isOpen={isVideoPromptOpen}
+          onSubmit={handleWatchRequest}
+          onCancel={() => setIsVideoPromptOpen(false)}
+        />
       )}
     </div>
   );

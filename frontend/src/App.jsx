@@ -17,8 +17,7 @@ import WatchTogetherModal from "./components/WatchTogetherModal";
 import VideoPlayerModal from "./components/VideoPlayerModal";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers, socket } =
-    useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth, socket } = useAuthStore();
   const { theme } = useThemeStore();
   const { watchingWith, setWatchingWith } = useChatStore();
 
@@ -30,7 +29,7 @@ const App = () => {
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -40,11 +39,7 @@ const App = () => {
     });
 
     socket.on("watch-response-received", ({ accepted }) => {
-      if (accepted) {
-        alert("They accepted your watch request!");
-      } else {
-        alert("They declined your watch request.");
-      }
+      alert(accepted ? "They accepted your watch request!" : "They declined.");
     });
 
     socket.on("start-video-session-received", ({ videoUrl }) => {
@@ -54,19 +49,10 @@ const App = () => {
     socket.on("video-control-received", ({ action, currentTime }) => {
       if (!playerRef.current) return;
 
-      if (action === "play") {
-        setIsPlaying(true);
+      if (action === "play" || action === "pause" || action === "seek") {
         playerRef.current.seekTo(currentTime);
-      }
-
-      if (action === "pause") {
-        setIsPlaying(false);
-        playerRef.current.seekTo(currentTime);
-      }
-
-      if (action === "seek") {
-        playerRef.current.seekTo(currentTime);
-        setPlayedTime(currentTime);
+        setIsPlaying(action === "play");
+        if (action === "seek") setPlayedTime(currentTime);
       }
     });
 
@@ -92,28 +78,23 @@ const App = () => {
       });
     }
 
-    if (action === "play") {
-      setIsPlaying(true);
-    }
-    if (action === "pause") {
-      setIsPlaying(false);
-    }
-    if (action === "seek") {
-      setPlayedTime(currentTime);
-    }
+    setIsPlaying(action === "play");
+    if (action === "seek") setPlayedTime(currentTime);
   };
 
-  if (isCheckingAuth && !authUser)
+  if (isCheckingAuth && !authUser) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader className="size-10 animate-spin" />
       </div>
     );
+  }
 
   return (
     <div data-theme={theme}>
       <Navbar />
 
+      {/* Routes */}
       <Routes>
         <Route
           path="/"
@@ -134,6 +115,7 @@ const App = () => {
         />
       </Routes>
 
+      {/* ✅ Modals mounted outside layout for full-screen control */}
       {incomingVideo && (
         <WatchTogetherModal
           videoUrl={incomingVideo.videoUrl}
@@ -158,6 +140,7 @@ const App = () => {
             });
             setIncomingVideo(null);
           }}
+          onClose={() => setIncomingVideo(null)}
         />
       )}
 
